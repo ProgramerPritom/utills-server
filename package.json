@@ -1,0 +1,30 @@
+{
+  "name": "my-project-server",
+  "version": "1.0.0",
+  "description": "Global Express.js server backend for multi-topic API endpoints with Vercel deployment support",
+  "main": "api/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node test/test-endpoints.js"
+  },
+  "keywords": [
+    "express",
+    "server",
+    "vercel",
+    "gemini",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
