@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const jobExtensionRoutes = require('./routes/jobExtensionRoutes');
+const growkinsRoutes = require('./routes/growkins');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.get('/', (req, res) => {
 
 // Mounted Topic Routes
 app.use('/api/job-extension', jobExtensionRoutes);
+app.use('/api/growkins', growkinsRoutes);
 
 // 404 Route Handler
 app.use((req, res) => {
