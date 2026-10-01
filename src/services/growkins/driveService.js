@@ -5,75 +5,100 @@ const { getGoogleAuth } = require('./googleAuth');
 const drive = google.drive('v3');
 
 function getFolderId() {
-  return process.env.GROWKINS_GOOGLE_DRIVE_FOLDER_ID || null;
+  return process.env.GROWKINS_GOOGLE_DRIVE_FOLDER_ID || '1kgGRy6hy4ePhWJ4qqaNQkBZ3zlfml6V6';
+}
+
+function getAppsScriptUrl() {
+  return process.env.GROWKINS_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwHXsiJwcdZF03nXGGExnR2_ycT_Lmr1f4DBm2qkATe_jOXdXLvg1sI8aY0CBriKYgc8Q/exec';
 }
 
 /**
- * Upload image buffer to Google Drive and make it publicly readable
+ * Upload image buffer to Google Drive
+ * Uses Google Apps Script Web App Bridge for personal 15GB Gmail quota.
  */
 async function uploadImageToDrive(fileBuffer, originalName, mimeType) {
-  const auth = getGoogleAuth();
   const folderId = getFolderId();
+  const appsScriptUrl = getAppsScriptUrl();
 
-  const fileMetadata = {
-    name: `growkins_${Date.now()}_${originalName}`,
-    parents: folderId ? [folderId] : []
-  };
+  if (appsScriptUrl) {
+    try {
+      const base64Data = fileBuffer.toString('base64');
+      const payload = {
+        action: 'upload',
+        folderId: folderId,
+        fileName: `growkins_${Date.now()}_${originalName}`,
+        mimeType: mimeType || 'image/jpeg',
+        base64: base64Data
+      };
 
-  const bufferStream = new Readable();
-  bufferStream.push(fileBuffer);
-  bufferStream.push(null);
+      const response = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
 
-  const media = {
-    mimeType: mimeType || 'image/jpeg',
-    body: bufferStream
-  };
-
-  const response = await drive.files.create({
-    auth,
-    resource: fileMetadata,
-    media: media,
-    fields: 'id, name, webViewLink, webContentLink'
-  });
-
-  const fileId = response.data.id;
-
-  // Make file publicly readable
-  try {
-    await drive.permissions.create({
-      auth,
-      fileId: fileId,
-      requestBody: {
-        role: 'reader',
-        type: 'anyone'
+      const resData = await response.json();
+      if (resData.success && resData.fileId) {
+        const fileId = resData.fileId;
+        const directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+        return {
+          id: fileId,
+          name: resData.fileName || originalName,
+          url: directUrl,
+          directUrl,
+          webViewLink: resData.webViewLink || `https://drive.google.com/file/d/${fileId}/view`,
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        throw new Error(resData.error || 'Unknown script error');
       }
-    });
-  } catch (permErr) {
-    console.warn('[GoogleDrive] Could not set public permission:', permErr.message);
+    } catch (scriptErr) {
+      console.error('[GoogleAppsScript Bridge Error]:', scriptErr.message);
+      throw scriptErr;
+    }
   }
 
-  // High-speed direct thumbnail CDN link
-  const directUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
-
-  return {
-    id: fileId,
-    name: response.data.name,
-    url: directUrl,
-    directUrl,
-    webViewLink: response.data.webViewLink,
-    createdAt: new Date().toISOString()
-  };
+  throw new Error('GROWKINS_GOOGLE_APPS_SCRIPT_URL is not configured');
 }
 
 /**
  * Delete a file from Google Drive
+ * Sends delete action to Google Apps Script / Drive API to remove file from Google Drive.
  */
 async function deleteImageFromDrive(fileId) {
-  const auth = getGoogleAuth();
-  await drive.files.delete({
-    auth,
-    fileId
-  });
+  const appsScriptUrl = getAppsScriptUrl();
+
+  if (appsScriptUrl && fileId) {
+    try {
+      const payload = {
+        action: 'delete',
+        fileId: fileId
+      };
+
+      await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+      console.log(`[GoogleDrive] File ${fileId} removed from Google Drive.`);
+    } catch (scriptErr) {
+      console.warn('[GoogleAppsScript Bridge Delete Warning]:', scriptErr.message);
+    }
+  }
+
+  try {
+    const auth = getGoogleAuth();
+    await drive.files.delete({
+      auth,
+      supportsAllDrives: true,
+      fileId
+    });
+  } catch (e) {
+    // If Service Account does not have direct delete, Apps Script handles it
+  }
+
   return { id: fileId, deleted: true };
 }
 

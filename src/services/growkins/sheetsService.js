@@ -3,11 +3,11 @@ const { getGoogleAuth } = require('./googleAuth');
 
 const sheets = google.sheets('v4');
 
-// In-memory cache for fast read operations
+// Simple in-memory cache to prevent hitting Google Sheets rate limits on frequent requests
 const cache = {
   data: {},
   timestamp: {},
-  TTL_MS: 30 * 1000 // 30 seconds cache for reads
+  TTL_MS: 15 * 1000 // 15 seconds cache for reads
 };
 
 function getSpreadsheetId() {
@@ -33,7 +33,7 @@ const JSON_FIELDS = new Set([
   'interests', 'benefits', 'materials', 'occasions',
   'whatsInside', 'playTips', 'inventory', 'images',
   'seo', 'items', 'timeline', 'gift', 'deliveryAddress',
-  'customer', 'productIds'
+  'customer', 'productIds', 'value', 'zones'
 ]);
 
 function serializeValue(key, val) {
@@ -60,7 +60,7 @@ function deserializeValue(key, val) {
   if (val === 'FALSE' || val === 'false') return false;
 
   // Number parsing (if strictly numeric)
-  if (!isNaN(val) && val.trim() !== '' && (key.toLowerCase().includes('price') || key.toLowerCase().includes('count') || key.toLowerCase().includes('total') || key.toLowerCase().includes('fee') || key === 'rating' || key === 'sortOrder')) {
+  if (!isNaN(val) && String(val).trim() !== '' && (key.toLowerCase().includes('price') || key.toLowerCase().includes('count') || key.toLowerCase().includes('total') || key.toLowerCase().includes('fee') || key === 'rating' || key === 'sortOrder' || key === 'quantity')) {
     return Number(val);
   }
 
@@ -155,8 +155,9 @@ async function getAllRows(sheetTitle, forceFresh = false) {
         obj[header] = deserializeValue(header, rawVal);
       });
 
-      // Filter out empty rows without an ID or name
-      if (obj.id || obj.name || obj.orderNumber) {
+      // Keep rows that have at least one non-empty value
+      const hasContent = headers.some(h => obj[h] !== undefined && obj[h] !== null && String(obj[h]).trim() !== '');
+      if (hasContent) {
         data.push(obj);
       }
     }

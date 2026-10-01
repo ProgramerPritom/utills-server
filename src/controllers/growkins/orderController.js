@@ -1,4 +1,5 @@
 const sheetsService = require('../../services/growkins/sheetsService');
+const { validateOrder } = require('./validation');
 
 const SHEET_NAME = 'Orders';
 const DEFAULT_HEADERS = [
@@ -18,7 +19,8 @@ async function listOrders(req, res, next) {
       orders = orders.filter(o => 
         (o.orderNumber && o.orderNumber.toLowerCase().includes(q)) ||
         (o.customer?.name && o.customer.name.toLowerCase().includes(q)) ||
-        (o.customer?.phone && o.customer.phone.includes(q))
+        (o.customer?.phone && o.customer.phone.includes(q)) ||
+        (o.deliveryAddress?.phone && o.deliveryAddress.phone.includes(q))
       );
     }
 
@@ -72,29 +74,49 @@ async function getOrderById(req, res, next) {
 async function createOrder(req, res, next) {
   try {
     const payload = req.body;
-    const now = new Date().toISOString();
-    const orderNum = 'GK-' + Math.floor(100000 + Math.random() * 900000);
 
-    const initialTimeline = [
-      {
-        id: 'tl_1',
-        status: 'pending',
-        title: 'Order Placed (COD)',
-        description: 'Customer submitted Cash on Delivery order',
-        timestamp: now,
-        actor: payload.customer?.name || 'Customer'
-      }
-    ];
+    const validation = validateOrder(payload);
+    if (!validation.isValid) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validation.errors
+      });
+    }
+
+    const now = new Date().toISOString();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const orderNum = payload.orderNumber || 'GK-BD-' + randomSuffix;
+
+    const initialTimeline = payload.timeline && payload.timeline.length > 0 
+      ? payload.timeline 
+      : [
+          {
+            id: 'tl_' + Date.now().toString(36),
+            status: 'pending',
+            title: 'Order Placed (Cash on Delivery)',
+            description: 'Customer submitted COD order via online checkout',
+            timestamp: now,
+            actor: payload.customer?.name || payload.deliveryAddress?.fullName || 'Customer'
+          }
+        ];
+
+    const subtotal = Number(payload.subtotal) || 0;
+    const deliveryFee = Number(payload.deliveryFee) || 0;
+    const total = Number(payload.total) || (subtotal + deliveryFee);
 
     const newOrder = {
       ...payload,
       id: payload.id || 'ord_' + Date.now().toString(36),
-      orderNumber: payload.orderNumber || orderNum,
+      orderNumber: orderNum,
+      subtotal,
+      deliveryFee,
+      total,
       currency: 'BDT',
       paymentMethod: 'Cash on Delivery',
       paymentStatus: payload.paymentStatus || 'cod_pending',
       status: payload.status || 'pending',
-      timeline: payload.timeline || initialTimeline,
+      timeline: initialTimeline,
       createdAt: now,
       updatedAt: now
     };
@@ -110,6 +132,14 @@ async function updateOrderStatus(req, res, next) {
   try {
     const { id } = req.params;
     const { status, note, actor = 'Admin' } = req.body;
+
+    if (!status) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed',
+        errors: { status: ['Status is required'] }
+      });
+    }
 
     const orders = await sheetsService.getAllRows(SHEET_NAME);
     const existing = orders.find(o => String(o.id) === String(id));
@@ -146,6 +176,14 @@ async function updatePaymentStatus(req, res, next) {
   try {
     const { id } = req.params;
     const { paymentStatus } = req.body;
+
+    if (!paymentStatus) {
+      return res.status(422).json({
+        success: false,
+        message: 'Validation failed',
+        errors: { paymentStatus: ['Payment status is required'] }
+      });
+    }
 
     const updated = await sheetsService.updateRow(SHEET_NAME, 'id', id, {
       paymentStatus,
