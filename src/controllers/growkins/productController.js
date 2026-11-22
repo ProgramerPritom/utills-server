@@ -8,7 +8,7 @@ const DEFAULT_HEADERS = [
   'benefits', 'materials', 'occasions', 'description', 'storyDescription',
   'whatsInside', 'playTips', 'dimensions', 'careInstructions', 'safetyNotes',
   'inventory', 'images', 'featuredImage', 'rating', 'reviewCount', 'featured',
-  'seo', 'createdAt', 'updatedAt'
+  'seo', 'createdAt', 'updatedAt', 'videoUrl'
 ];
 
 async function listProducts(req, res, next) {
