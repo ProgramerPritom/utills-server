@@ -196,10 +196,37 @@ async function updatePaymentStatus(req, res, next) {
   }
 }
 
+async function updateOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+    const payload = req.body;
+    const now = new Date().toISOString();
+    const updated = await sheetsService.updateRow(SHEET_NAME, 'id', id, {
+      ...payload,
+      updatedAt: now
+    });
+    res.json({ success: true, data: updated, message: 'Order updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+    await sheetsService.deleteRow(SHEET_NAME, 'id', id);
+    res.json({ success: true, message: 'Order deleted successfully', id });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   listOrders,
   getOrderById,
   createOrder,
   updateOrderStatus,
-  updatePaymentStatus
+  updatePaymentStatus,
+  updateOrder,
+  deleteOrder
 };

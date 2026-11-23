@@ -46,6 +46,9 @@ apiRouter.post('/products/bulk-status', productCtrl.bulkUpdateStatus);
 apiRouter.get('/orders', orderCtrl.listOrders);
 apiRouter.post('/orders', orderCtrl.createOrder);
 apiRouter.get('/orders/:id', orderCtrl.getOrderById);
+apiRouter.patch('/orders/:id', orderCtrl.updateOrder);
+apiRouter.put('/orders/:id', orderCtrl.updateOrder);
+apiRouter.delete('/orders/:id', orderCtrl.deleteOrder);
 apiRouter.patch('/orders/:id/status', orderCtrl.updateOrderStatus);
 apiRouter.patch('/orders/:id/payment', orderCtrl.updatePaymentStatus);
 
@@ -102,5 +105,16 @@ apiRouter.get('/dashboard/summary', miscCtrl.getDashboardSummary);
 router.use('/', apiRouter);
 router.use('/admin', apiRouter);
 router.use('/api/admin', apiRouter);
+
+// Explicit root-level bindings for safety against trailing/nested slashes
+router.delete('/orders/:id', orderCtrl.deleteOrder);
+router.delete('/admin/orders/:id', orderCtrl.deleteOrder);
+router.delete('/api/admin/orders/:id', orderCtrl.deleteOrder);
+router.patch('/orders/:id', orderCtrl.updateOrder);
+router.patch('/admin/orders/:id', orderCtrl.updateOrder);
+router.patch('/api/admin/orders/:id', orderCtrl.updateOrder);
+router.put('/orders/:id', orderCtrl.updateOrder);
+router.put('/admin/orders/:id', orderCtrl.updateOrder);
+router.put('/api/admin/orders/:id', orderCtrl.updateOrder);
 
 module.exports = router;
